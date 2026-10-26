@@ -1,5 +1,5 @@
 {
-  "name": "@unitsml/unitsdb",
+  "name": "unitsdb",
   "version": "0.1.0",
   "description": "UnitsDB in TypeScript: typed access to the units database (units, prefixes, dimensions, quantities, currencies) rebuilt from unitsml/unitsdb releases",
   "type": "module",
