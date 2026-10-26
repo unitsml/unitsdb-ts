@@ -1,6 +1,6 @@
 name: release
 
-# npm publish with provenance (SLSA attestation via GitHub OIDC),
+# npm publish (registry auth via the configured trusted publisher).
 # mirroring unitsml/unitsdb-js. Requires the package to be configured
 # for trusted publishing on npmjs.com (github: unitsml/unitsdb-ts,
 # workflow: release.yml) — the unscoped package name matches the
@@ -55,4 +55,4 @@ jobs:
           fi
 
       - name: Publish to npm with provenance
-        run: npm publish --provenance --access public
+        run: npm publish --access public
