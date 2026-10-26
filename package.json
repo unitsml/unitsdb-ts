@@ -1,0 +1,31 @@
+{
+  "name": "@unitsml/unitsdb-ts",
+  "version": "0.1.0",
+  "description": "UnitsDB in TypeScript: typed access to the units database (units, prefixes, dimensions, quantities, currencies) rebuilt from unitsml/unitsdb releases",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test",
+    "dataset": "ruby scripts/build-dataset.rb > /dev/null && cp /tmp/unitsdb-ts.json src/data/unitsdb.json"
+  },
+  "license": "BSD-2-Clause",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/unitsml/unitsdb-ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}
