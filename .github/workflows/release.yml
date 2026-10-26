@@ -3,8 +3,8 @@ name: release
 # npm publish with provenance (SLSA attestation via GitHub OIDC),
 # mirroring unitsml/unitsdb-js. Requires the package to be configured
 # for trusted publishing on npmjs.com (github: unitsml/unitsdb-ts,
-# workflow: release.yml) — publishing the EXISTING @unitsml/unitsdb
-# package name as the native TypeScript implementation.
+# workflow: release.yml) — the unscoped package name matches the
+# unitsdb Ruby gem.
 
 permissions:
   contents: read

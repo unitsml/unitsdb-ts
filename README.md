@@ -1,11 +1,11 @@
-# @unitsml/unitsdb
+# unitsdb
 
 UnitsDB in TypeScript: typed access to the units database — units,
 prefixes, dimensions, quantities — rebuilt from
 [unitsml/unitsdb](https://github.com/unitsml/unitsdb) releases.
 
 The native replacement for the retired Opal-compiled `@unitsml/unitsdb`;
-[`@unitsml/unitsml-ts`](https://github.com/unitsml/unitsml-ts) consumes
+[the `unitsml-ts` stack](https://github.com/unitsml/unitsml-ts) consumes
 this package for all unitsdb resolution.
 
 ## Dataset provenance
@@ -18,7 +18,7 @@ tracks the unitsdb data tags — current: unitsdb v2.0.2.
 ## API
 
 ```ts
-import { Unitsdb } from "@unitsml/unitsdb";
+import { Unitsdb } from "unitsdb";
 
 Unitsdb.findUnitBySymbolId("m");      // NISTu1 "meter"
 Unitsdb.findUnitById("NISTu155");     // decibel
