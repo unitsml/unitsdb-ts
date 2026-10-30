@@ -5,15 +5,32 @@ db = Unitsdb::Database.from_db("data")
 def safe(&) = (yield rescue nil)
 
 units = db.units.map do |u|
-  {
+  h = {
     identifiers: safe { u.identifiers&.map { |i| { type: i.type, id: i.id } } },
     names: safe { u.names&.map { |n| { lang: n.lang, value: n.value } } },
     symbols: safe { u.symbols&.map { |s| { id: s.id, ascii: s.ascii, unicode: s.unicode, latex: s.latex, html: s.html, mathml: s.mathml } } },
     unit_system_reference: safe { u.unit_system_reference&.map { |r| { type: r.type, id: r.id } } },
     si_derived_bases: safe { u.si_derived_bases&.map { |b| { unit_reference: { id: b.unit_reference&.id }, prefix_reference: (b.prefix_reference && { id: b.prefix_reference&.id }), power: b.power } } },
     dimension_reference: safe { u.dimension_reference && { id: u.dimension_reference.id } },
-    quantity_references: safe { u.quantity_references&.map { |r| { id: r.id } } },
+    quantity_references: safe { u.quantity_references&.map { |r| r.respond_to?(:primary) && r.primary ? { id: r.id, primary: true } : { id: r.id } } },
   }
+  # Schema 2.2.0: canonical conversion data (factor/offset exact rationals +
+  # root decomposition) — the #130/#134 register content.
+  if u.respond_to?(:canonical_conversion) && u.canonical_conversion
+    cc = u.canonical_conversion
+    cch = { factor: cc.factor&.to_s }
+    cch[:offset] = cc.offset&.to_s if cc.respond_to?(:offset) && cc.offset
+    ru = cc.respond_to?(:root_units) ? cc.root_units : nil
+    if ru&.any?
+      cch[:root_units] = ru.map do |r|
+        { power: r.power,
+          unit_reference: { id: r.unit_reference&.id },
+          prefix_reference: (r.respond_to?(:prefix_reference) && r.prefix_reference ? { id: r.prefix_reference&.id } : nil) }.compact
+      end
+    end
+    h[:canonical_conversion] = cch
+  end
+  h
 end
 
 prefixes = db.prefixes.map do |p|
@@ -51,6 +68,7 @@ quantities = db.quantities.map do |q|
     names: safe { q.names&.map { |n| { lang: n.lang, value: n.value } } },
     dimension_reference: safe { q.dimension_reference && { id: q.dimension_reference.id } },
     quantity_type: safe { q.quantity_type },
+    equivalence_class: (q.respond_to?(:equivalence_class) && q.equivalence_class) || nil,
     unit_references: safe { q.unit_references&.map { |r| { id: r.id } } },
   }
 end

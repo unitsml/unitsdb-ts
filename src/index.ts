@@ -24,6 +24,10 @@ export interface DerivedBase {
   prefix_reference: { id: string } | null;
   power: string | number | null;
 }
+export interface QuantityReferenceRef {
+  id: string;
+  primary?: boolean;
+}
 export interface UnitRecord {
   identifiers?: Identifier[];
   names?: LocalizedString[];
@@ -31,7 +35,7 @@ export interface UnitRecord {
   unit_system_reference?: Identifier[];
   si_derived_bases?: DerivedBase[];
   dimension_reference?: { id: string } | null;
-  quantity_references?: Identifier[];
+  quantity_references?: QuantityReferenceRef[];
 }
 export interface PrefixRecord {
   identifiers?: Identifier[];
@@ -63,7 +67,7 @@ export interface CurrencyRecord {
   minor_unit_exponent?: number;
   status?: string;
   unit_system_reference?: Identifier[];
-  quantity_references?: Identifier[];
+  quantity_references?: QuantityReferenceRef[];
   notes?: string | null;
 }
 
