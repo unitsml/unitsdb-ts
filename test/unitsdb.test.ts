@@ -8,6 +8,7 @@ import {
   unitEnName,
   prefixNistId,
   prefixEnName,
+  type CurrencyRecord,
 } from "../src/index.ts";
 
 test("the dataset loads with expected collection sizes", () => {
@@ -58,3 +59,60 @@ test("quantities resolve by nist and unitsml identifiers", () => {
   assert.equal(frequency?.id, "NISTq45");
   assert.ok(frequency?.names?.some((n) => n.lang === "en" && n.value === "frequency"));
 });
+
+test("the dataset carries all 178 ISO 4217 currencies", () => {
+  assert.equal(Unitsdb.currencies.length, 178);
+});
+
+test("currencies resolve by code, numeric identifier and unitsml id", () => {
+  const euro = Unitsdb.findCurrencyByCode("eur");
+  assert.equal(unitEnName(euro as never), "Euro");
+  assert.equal(
+    euro?.identifiers?.find((i) => i.type === "iso4217_numeric")?.id,
+    "978",
+  );
+  assert.equal(Unitsdb.findCurrencyByCode("EUR"), euro);
+  assert.equal(Unitsdb.findCurrencyByNumeric(978), euro);
+  assert.equal(Unitsdb.findCurrencyByNumeric("978"), euro);
+  // Leading-zero numeric codes are decimals, not octal.
+  const aud = Unitsdb.findCurrencyByNumeric("036");
+  assert.equal(aud?.identifiers?.find((i) => i.type === "iso4217")?.id, "AUD");
+  assert.equal(Unitsdb.findCurrencyByNumeric("nope"), undefined);
+  const byId = Unitsdb.findById("cur:EUR");
+  assert.equal(byId, euro);
+  assert.equal(Unitsdb.findById("EUR", "iso4217"), euro);
+});
+
+test("currencies resolve by unicode sign and ascii code", () => {
+  const euro = Unitsdb.findCurrencyByCode("EUR");
+  assert.deepEqual(Unitsdb.findCurrenciesBySymbol("€"), [euro]);
+  assert.ok(Unitsdb.findCurrenciesBySymbol("eur").includes(euro));
+  assert.ok(Unitsdb.findCurrenciesBySymbol("A$").length > 0);
+  assert.deepEqual(Unitsdb.findCurrenciesBySymbol("£").length > 0, true);
+});
+
+test("minor units: 0 is a value, N.A. is absent — never conflated", () => {
+  const kmf = Unitsdb.findCurrencyByCode("KMF");
+  assert.equal(kmf?.minor_unit_exponent, 0);
+  const absent = Unitsdb.currencies.filter(
+    (currency) => currency.minor_unit_exponent === undefined,
+  );
+  assert.equal(absent.length, 13);
+  assert.ok(absent.every((currency) => currency.minor_unit_exponent !== 0));
+});
+
+test("currencies are denominations: no conversion factors exist", () => {
+  for (const currency of Unitsdb.currencies) {
+    assert.equal("si_derived_bases" in currency, false);
+    assert.equal("canonical_conversion" in currency, false);
+    assert.equal("root_units" in currency, false);
+  }
+});
+
+test("search spans identifiers and names across collections", () => {
+  assert.ok(Unitsdb.search({ text: "Euro" }).includes(Unitsdb.findCurrencyByCode("EUR")));
+  assert.ok(Unitsdb.search({ text: "euro" }).length > 0);
+  const scoped = Unitsdb.search({ text: "Euro", type: "currencies" });
+  assert.ok(scoped.every((record) => (record as CurrencyRecord).status !== undefined));
+});
+
