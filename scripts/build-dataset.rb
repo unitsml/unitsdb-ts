@@ -55,5 +55,20 @@ quantities = db.quantities.map do |q|
   }
 end
 
-File.write("/tmp/unitsdb-ts.json", JSON.generate({ units: units, prefixes: prefixes, dimensions: dimensions, quantities: quantities }))
-puts "units=#{units.size} prefixes=#{prefixes.size} dimensions=#{dimensions.size} quantities=#{quantities.size}"
+currencies = db.currencies.map do |c|
+  h = {
+    identifiers: safe { c.identifiers&.map { |i| { type: i.type, id: i.id } } },
+    names: safe { c.names&.map { |n| { lang: n.lang, value: n.value } } },
+    symbols: safe { c.symbols&.map { |s| { id: s.id, ascii: s.ascii, unicode: s.unicode } } },
+    status: safe { c.status },
+    unit_system_reference: safe { c.unit_system_reference&.map { |r| { type: r.type, id: r.id } } },
+    quantity_references: safe { c.quantity_references&.map { |r| { id: r.id } } },
+    notes: safe { c.notes },
+  }
+  # ISO 4217 "N.A." minor units are ABSENT, never 0 — omit the key entirely.
+  h[:minor_unit_exponent] = c.minor_unit_exponent unless c.minor_unit_exponent.nil?
+  h
+end
+
+File.write("/tmp/unitsdb-ts.json", JSON.generate({ units: units, prefixes: prefixes, dimensions: dimensions, quantities: quantities, currencies: currencies }))
+puts "units=#{units.size} prefixes=#{prefixes.size} dimensions=#{dimensions.size} quantities=#{quantities.size} currencies=#{currencies.size}"

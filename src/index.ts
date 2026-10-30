@@ -50,11 +50,28 @@ export interface QuantityRecord {
   dimension_reference?: { id: string } | null;
   quantityType?: string;
 }
+export interface CurrencySymbol {
+  id?: string;
+  ascii?: string;
+  unicode?: string;
+}
+export interface CurrencyRecord {
+  identifiers?: Identifier[];
+  names?: LocalizedString[];
+  symbols?: CurrencySymbol[];
+  /** ISO 4217 "N.A." minor units are absent — the key is omitted, never 0. */
+  minor_unit_exponent?: number;
+  status?: string;
+  unit_system_reference?: Identifier[];
+  quantity_references?: Identifier[];
+  notes?: string | null;
+}
 
 const units = dataset.units as UnitRecord[];
 const prefixes = dataset.prefixes as PrefixRecord[];
 const dimensions = dataset.dimensions as DimensionRecord[];
 const quantities = dataset.quantities as QuantityRecord[];
+const currencies = dataset.currencies as CurrencyRecord[];
 
 const unitsBySymbolId = new Map<string, UnitRecord>();
 for (const unit of units) {
@@ -105,6 +122,32 @@ for (const quantity of quantities) {
       quantitiesByIdentifier.set(identifier.id, quantity);
     }
   }
+}
+// Ruby find_first_through — FIRST record wins on identifier collisions.
+const currenciesByCode = new Map<string, CurrencyRecord>();
+for (const currency of currencies) {
+  for (const identifier of currency.identifiers ?? []) {
+    if (identifier.type === "iso4217" && !currenciesByCode.has(identifier.id)) {
+      currenciesByCode.set(identifier.id, currency);
+    }
+  }
+}
+const currenciesByNumeric = new Map<string, CurrencyRecord>();
+for (const currency of currencies) {
+  for (const identifier of currency.identifiers ?? []) {
+    if (
+      identifier.type === "iso4217_numeric" &&
+      !currenciesByNumeric.has(identifier.id)
+    ) {
+      currenciesByNumeric.set(identifier.id, currency);
+    }
+  }
+}
+function currencySymbolMatch(currency: CurrencyRecord, symbol: string): boolean {
+  const needle = symbol.toLowerCase();
+  return (currency.symbols ?? []).some(
+    (sym) => sym.unicode === symbol || sym.ascii?.toLowerCase() === needle,
+  );
 }
 
 export const Unitsdb = {
@@ -157,6 +200,85 @@ export const Unitsdb = {
 
   findQuantityById(id: string): QuantityRecord | undefined {
     return quantitiesById.get(id) ?? quantitiesByIdentifier.get(id);
+  },
+
+  currencies,
+
+  /** unitsml-ruby `Unitsdb.currencies.find_by_code` (case-insensitive alpha) */
+  findCurrencyByCode(code: string): CurrencyRecord | undefined {
+    return currenciesByCode.get(code.toUpperCase());
+  },
+
+  /** unitsml-ruby `Unitsdb.currencies.find_by_numeric` (3-digit, base-10) */
+  findCurrencyByNumeric(numeric: string | number): CurrencyRecord | undefined {
+    const parsed = Number.parseInt(String(numeric), 10);
+    if (Number.isNaN(parsed)) return undefined;
+    return currenciesByNumeric.get(String(parsed).padStart(3, "0"));
+  },
+
+  /** unitsml-ruby `Unitsdb.find_by_symbol(_, :currencies)` — unicode sign
+   * (€, A$) or ascii alpha code (EUR, AUD), case-insensitive on ascii. */
+  findCurrenciesBySymbol(symbol: string): CurrencyRecord[] {
+    return currencies.filter((currency) => currencySymbolMatch(currency, symbol));
+  },
+
+  /** unitsml-ruby `Unitsdb.get_by_id` across collections (REQUIRED first,
+   * OPTIONAL currencies last; first record wins on collisions). */
+  findById(
+    id: string,
+    type?: string,
+  ): UnitRecord | PrefixRecord | DimensionRecord | QuantityRecord | CurrencyRecord | undefined {
+    const matchIdentifier = (
+      record: { identifiers?: Identifier[] } | QuantityRecord,
+    ): boolean =>
+      ((record as { identifiers?: Identifier[] }).identifiers ?? []).some(
+        (identifier) =>
+          identifier.id === id && (type === undefined || identifier.type === type),
+      );
+    return (
+      units.find(matchIdentifier) ??
+      prefixes.find(matchIdentifier) ??
+      dimensions.find((dim) => type === undefined && dim.id === id) ??
+      quantities.find(matchIdentifier) ??
+      currencies.find(matchIdentifier)
+    );
+  },
+
+  /** unitsml-ruby `Unitsdb.search` — substring over identifiers and names. */
+  search(
+    params: { text?: string; type?: string },
+  ): Array<UnitRecord | PrefixRecord | DimensionRecord | QuantityRecord | CurrencyRecord> {
+    const text = params.text;
+    if (!text) return [];
+    const needle = text.toLowerCase();
+    const scope = params.type ?? "all";
+    const matchesText = (
+      record: { identifiers?: Identifier[]; names?: LocalizedString[] } | QuantityRecord,
+    ): boolean => {
+      const identifiers = (record as { identifiers?: Identifier[] }).identifiers ?? [];
+      return (
+        identifiers.some((i) => i.id.toLowerCase().includes(needle)) ||
+        (record.names ?? []).some((n) => n.value.toLowerCase().includes(needle))
+      );
+    };
+    type ScopeRecord =
+      UnitRecord | PrefixRecord | DimensionRecord | QuantityRecord | CurrencyRecord;
+    const results: ScopeRecord[] = [];
+    const push = <T extends ScopeRecord>(
+      scopeName: string,
+      records: T[],
+      match: (record: T) => boolean,
+    ): void => {
+      if (scope !== "all" && scope !== scopeName) return;
+      for (const record of records) if (match(record)) results.push(record);
+    };
+    push("units", units, matchesText);
+    push("prefixes", prefixes, matchesText);
+    push("dimensions", dimensions, (dim) =>
+      typeof dim.id === "string" && dim.id.toLowerCase().includes(needle));
+    push("quantities", quantities, matchesText);
+    push("currencies", currencies, matchesText);
+    return results;
   },
 };
 
