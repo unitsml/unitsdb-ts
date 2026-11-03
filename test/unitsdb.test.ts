@@ -116,3 +116,42 @@ test("search spans identifiers and names across collections", () => {
   assert.ok(scoped.every((record) => (record as CurrencyRecord).status !== undefined));
 });
 
+test("bundled exposes the already-loaded database with the documented lookup API", () => {
+  const db = Unitsdb.bundled();
+  assert.equal(db, Unitsdb);
+  assert.equal(db.getById("NISTu1"), Unitsdb.findUnitById("NISTu1"));
+  assert.equal(db.getById("cur:EUR"), Unitsdb.findCurrencyByCode("EUR"));
+  assert.equal(db.getById("EUR", "iso4217"), Unitsdb.findCurrencyByCode("EUR"));
+  assert.equal(db.getById("EUR", "nist"), undefined);
+  assert.equal(db.getById("not-an-identifier"), undefined);
+  assert.equal(db.currencies.length, 178);
+});
+
+test("findBySymbol searches units, prefixes and currencies in collection order", () => {
+  const db = Unitsdb.bundled();
+  assert.ok(db.findBySymbol("m").includes(db.getById("NISTu1")!));
+  assert.ok(db.findBySymbol("K", "prefixes").includes(Unitsdb.findPrefixBySymbolName("k")!));
+  assert.deepEqual(db.findBySymbol("€"), [db.getById("cur:EUR")]);
+  assert.deepEqual(db.findBySymbol("eur", "currencies"), [db.getById("cur:EUR")]);
+  const combined = [
+    ...db.findBySymbol("m", "units"),
+    ...db.findBySymbol("m", "prefixes"),
+    ...db.findBySymbol("m", "currencies"),
+  ];
+  assert.deepEqual(db.findBySymbol("m"), combined);
+  assert.deepEqual(db.findBySymbol("€", "units"), []);
+  assert.deepEqual(db.findBySymbol("unknown-symbol"), []);
+  assert.deepEqual(db.findBySymbol(null), []);
+  assert.deepEqual(db.findBySymbol(undefined), []);
+  assert.throws(() => db.findBySymbol("m", "dimensions"), /unknown collection/);
+});
+
+test("search supports the documented text shorthand and existing parameter object", () => {
+  assert.deepEqual(Unitsdb.search("Euro"), Unitsdb.search({ text: "Euro" }));
+  assert.deepEqual(
+    Unitsdb.search("Euro", "currencies"),
+    Unitsdb.search({ text: "Euro", type: "currencies" }),
+  );
+  assert.deepEqual(Unitsdb.search(""), []);
+});
+

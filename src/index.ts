@@ -154,7 +154,7 @@ function currencySymbolMatch(currency: CurrencyRecord, symbol: string): boolean 
   );
 }
 
-export const Unitsdb = {
+const database = {
   units,
 
   /** unitsml-ruby `Unitsdb.units.find_by_symbol_id` */
@@ -226,6 +226,42 @@ export const Unitsdb = {
     return currencies.filter((currency) => currencySymbolMatch(currency, symbol));
   },
 
+  /** Ruby Database#find_by_symbol: units and prefixes match ASCII symbols;
+   * currencies also match their exact Unicode sign. Collection order is kept. */
+  findBySymbol(
+    symbol: string | null | undefined,
+    entityType?: string | null,
+  ): Array<UnitRecord | PrefixRecord | CurrencyRecord> {
+    if (symbol == null) return [];
+    const collections = { units, prefixes, currencies };
+    const scope = entityType == null
+      ? ["units", "prefixes", "currencies"] as const
+      : [entityType];
+    const needle = symbol.toLowerCase();
+    const matches: Array<UnitRecord | PrefixRecord | CurrencyRecord> = [];
+    for (const name of scope) {
+      if (name !== "units" && name !== "prefixes" && name !== "currencies") {
+        throw new RangeError(`unknown collection: ${name}`);
+      }
+      for (const record of collections[name]) {
+        if ((record.symbols ?? []).some((sym) =>
+          (sym.ascii ?? "").toLowerCase() === needle ||
+          (name === "currencies" && (sym.unicode ?? "") === symbol))) {
+          matches.push(record);
+        }
+      }
+    }
+    return matches;
+  },
+
+  /** Compatibility name for the identifier lookup documented by unitsdb-js. */
+  getById(
+    id: string,
+    type?: string,
+  ): UnitRecord | PrefixRecord | DimensionRecord | QuantityRecord | CurrencyRecord | undefined {
+    return database.findById(id, type);
+  },
+
   /** unitsml-ruby `Unitsdb.get_by_id` across collections (REQUIRED first,
    * OPTIONAL currencies last; first record wins on collisions). */
   findById(
@@ -250,8 +286,10 @@ export const Unitsdb = {
 
   /** unitsml-ruby `Unitsdb.search` — substring over identifiers and names. */
   search(
-    params: { text?: string; type?: string },
+    query: { text?: string; type?: string } | string,
+    type?: string,
   ): Array<UnitRecord | PrefixRecord | DimensionRecord | QuantityRecord | CurrencyRecord> {
+    const params = typeof query === "string" ? { text: query, type } : query;
     const text = params.text;
     if (!text) return [];
     const needle = text.toLowerCase();
@@ -285,6 +323,15 @@ export const Unitsdb = {
     return results;
   },
 };
+
+export type BundledDatabase = typeof database & {
+  bundled(): BundledDatabase;
+};
+
+/** The bundled dataset is loaded once and shared by all callers. */
+export const Unitsdb: BundledDatabase = Object.assign(database, {
+  bundled: (): BundledDatabase => Unitsdb,
+});
 
 // DIMS_VECTOR order (unitsml-ruby Utility::DIMS_VECTOR) — the vector
 // string fed to unitsdb dimension lookups depends on it.
