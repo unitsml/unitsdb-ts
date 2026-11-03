@@ -54,5 +54,8 @@ jobs:
             npm version "$VERSION" --no-git-tag-version
           fi
 
+      - name: Verify the packed package
+        run: npm run test:package
+
       - name: Publish to npm with provenance
         run: npm publish --access public
