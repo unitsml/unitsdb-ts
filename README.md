@@ -11,9 +11,22 @@ this package for all unitsdb resolution.
 ## Dataset provenance
 
 `src/data/unitsdb.json` is generated from the unitsdb YAML releases by
-`scripts/build-dataset.rb` (run it from a unitsdb-ruby checkout;
-`npm run dataset` copies the result into place). The dataset version
-tracks the unitsdb data tags — current: unitsdb v2.0.2.
+`scripts/build-dataset.rb` (run it with unitsdb-ruby loadable;
+`ruby scripts/build-dataset.rb DATA_DIR OUT` takes a unitsdb checkout,
+`npm run dataset` copies the default output into place). The current
+dataset is unitsdb **v2.2.0** (commit `c2c7d181`, schema 2.2.0).
+
+The generator refuses rather than guessing: every field the release
+schema marks required must be present, loader errors abort the build, and
+the YAML files must agree on one schema version. The dataset records its
+own `provenance` — data repository/commit/tag/schema version, per-file
+sha256 digests, generator digest and loader versions — exposed as
+`Unitsdb.provenance`. The tests fail if the generator changes without the
+dataset being regenerated.
+
+Units carry the schema 2.2.0 fields `canonical_conversion` (exact
+factor/offset strings and root units), `root_units`, `scale_reference`
+and external `references`; the `scales` registry is bundled too.
 
 ## API
 
@@ -26,6 +39,9 @@ Unitsdb.findPrefixBySymbolName("k");  // kilo (base 10, power 3)
 Unitsdb.findDimensionById("NISTd2");  // mass
 Unitsdb.findDimensionByVector("1");   // vector-string lookup
 Unitsdb.findQuantityById("q:frequency"); // resolves q: and NIST ids
+Unitsdb.findUnitByReferenceUri("http://si-digital-framework.org/SI/units/degreeCelsius"); // NISTu23
+Unitsdb.unitScale(Unitsdb.findUnitById("NISTu23")!); // continuous interval scale
+Unitsdb.provenance.data.tag;          // "v2.2.0"
 ```
 
 Finders mirror the unitsml-ruby wrappers: units resolve through symbol
