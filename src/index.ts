@@ -24,6 +24,30 @@ export interface DerivedBase {
   prefix_reference: { id: string } | null;
   power: string | number | null;
 }
+/** A unit/prefix power pair (canonical_conversion.root_units, root_units). */
+export interface RootUnitRef {
+  power: number | null;
+  unit_reference: { id: string };
+  prefix_reference?: { id: string } | null;
+}
+/** Schema 2.2.0 canonical conversion: value_root = value * factor + offset.
+ * factor/offset are exact decimal or rational strings ("1", "273.15",
+ * "5/9") — parse them exactly, never through binary floating point. */
+export interface CanonicalConversion {
+  factor: string;
+  offset?: string;
+  root_units: RootUnitRef[];
+}
+/** An external reference (si-digital-framework, qudt, ucum, ...). */
+export interface ExternalReference {
+  type: string;
+  authority: string;
+  uri: string;
+}
+export interface ScaleReference {
+  type: string;
+  id: string;
+}
 export interface QuantityReferenceRef {
   id: string;
   primary?: boolean;
@@ -36,6 +60,13 @@ export interface UnitRecord {
   si_derived_bases?: DerivedBase[];
   dimension_reference?: { id: string } | null;
   quantity_references?: QuantityReferenceRef[];
+  canonical_conversion?: CanonicalConversion;
+  short?: string | null;
+  root?: boolean | null;
+  prefixed?: boolean | null;
+  root_units?: RootUnitRef[] | null;
+  scale_reference?: ScaleReference | null;
+  references?: ExternalReference[] | null;
 }
 export interface PrefixRecord {
   identifiers?: Identifier[];
@@ -43,6 +74,8 @@ export interface PrefixRecord {
   symbols?: UnitSymbol[];
   base?: number;
   power?: number;
+  short?: string | null;
+  references?: ExternalReference[] | null;
 }
 export interface DimensionRecord {
   id: string | null;
@@ -53,6 +86,8 @@ export interface QuantityRecord {
   names?: LocalizedString[];
   dimension_reference?: { id: string } | null;
   quantityType?: string;
+  short?: string | null;
+  references?: ExternalReference[] | null;
 }
 export interface CurrencySymbol {
   id?: string;
@@ -71,11 +106,48 @@ export interface CurrencyRecord {
   notes?: string | null;
 }
 
+export interface ScaleRecord {
+  identifiers: Identifier[];
+  names: LocalizedString[];
+  short?: string | null;
+  properties: {
+    continuous: boolean;
+    ordered: boolean;
+    logarithmic: boolean;
+    interval: boolean;
+    ratio: boolean;
+  };
+  /** Operations the scale permits (addition, subtraction, scaling, ...). */
+  operations?: string[] | null;
+}
+/** Which unitsdb release the bundled dataset was projected from, and by
+ * which generator — written by scripts/build-dataset.rb. Digests are sha256
+ * of the file text with CRLF normalized to LF. */
+export interface DatasetProvenance {
+  data: {
+    repository: string;
+    commit: string;
+    tag: string | null;
+    schema_version: string;
+    files: Record<string, string>;
+    schemas: Record<string, string>;
+  };
+  generator: {
+    script: string;
+    script_digest: string;
+    unitsdb_ruby: string;
+    lutaml_model: string | null;
+  };
+  counts: Record<string, number>;
+}
+
 const units = dataset.units as UnitRecord[];
 const prefixes = dataset.prefixes as PrefixRecord[];
 const dimensions = dataset.dimensions as DimensionRecord[];
 const quantities = dataset.quantities as QuantityRecord[];
 const currencies = dataset.currencies as CurrencyRecord[];
+const scales = dataset.scales as ScaleRecord[];
+const provenance = dataset.provenance as DatasetProvenance;
 
 const unitsBySymbolId = new Map<string, UnitRecord>();
 for (const unit of units) {
@@ -91,6 +163,23 @@ for (const unit of units) {
   for (const identifier of unit.identifiers ?? []) {
     if (!unitsByIdentifier.has(identifier.id)) {
       unitsByIdentifier.set(identifier.id, unit);
+    }
+  }
+}
+// unitsml-ruby `find_by_reference_uri` — first unit carrying the URI.
+const unitsByReferenceUri = new Map<string, UnitRecord>();
+for (const unit of units) {
+  for (const reference of unit.references ?? []) {
+    if (!unitsByReferenceUri.has(reference.uri)) {
+      unitsByReferenceUri.set(reference.uri, unit);
+    }
+  }
+}
+const scalesByIdentifier = new Map<string, ScaleRecord>();
+for (const scale of scales) {
+  for (const identifier of scale.identifiers) {
+    if (!scalesByIdentifier.has(identifier.id)) {
+      scalesByIdentifier.set(identifier.id, scale);
     }
   }
 }
@@ -171,6 +260,29 @@ const database = {
   findUnitById(id: string): UnitRecord | undefined {
     return unitsByIdentifier.get(id);
   },
+
+  /** unitsml-ruby `Unitsdb.units.find_by_reference_uri` — the unit whose
+   * external references include this URI (e.g. an SI digital framework
+   * unit URI). */
+  findUnitByReferenceUri(uri: string): UnitRecord | undefined {
+    return unitsByReferenceUri.get(uri);
+  },
+
+  scales,
+
+  /** A scale by identifier ("continuous_ratio" or "s:continuous_ratio"). */
+  findScaleById(id: string): ScaleRecord | undefined {
+    return scalesByIdentifier.get(id);
+  },
+
+  /** The scale a unit's scale_reference names. */
+  unitScale(unit: UnitRecord): ScaleRecord | undefined {
+    const id = unit.scale_reference?.id;
+    return id === undefined ? undefined : scalesByIdentifier.get(id);
+  },
+
+  /** Release/generator provenance of the bundled dataset. */
+  provenance,
 
   prefixes,
 
