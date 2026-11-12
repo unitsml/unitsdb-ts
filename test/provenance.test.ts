@@ -22,6 +22,12 @@ test("the dataset records the unitsdb release and generator it came from", () =>
     provenance.generator.script_digest,
     `sha256:${createHash("sha256").update(script).digest("hex")}`,
   );
+  const helpers = readFileSync(new URL("../scripts/projection-helpers.rb", import.meta.url), "utf8")
+    .replace(/\r\n/g, "\n");
+  assert.equal(
+    provenance.generator.helper_digest,
+    `sha256:${createHash("sha256").update(helpers).digest("hex")}`,
+  );
 });
 
 test("units carry schema 2.2.0 conversion, scale and reference fields", () => {
