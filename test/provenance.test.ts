@@ -9,7 +9,12 @@ test("the dataset records the unitsdb release and generator it came from", () =>
   assert.equal(provenance.data.repository, "https://github.com/unitsml/unitsdb");
   assert.match(provenance.data.commit, /^[0-9a-f]{40}$/);
   assert.equal(provenance.data.schema_version, "2.2.0");
-  assert.equal(provenance.data.tag, "v2.2.0");
+  // The data is pinned by its exact commit. A release tag, when the commit has
+  // one, must name the same schema version; an untagged commit is a pinned
+  // candidate (for example a data pull request head).
+  if (provenance.data.tag !== null) {
+    assert.equal(provenance.data.tag, `v${provenance.data.schema_version}`);
+  }
   for (const file of ["units.yaml", "prefixes.yaml", "scales.yaml"]) {
     assert.match(provenance.data.files[file], /^sha256:[0-9a-f]{64}$/);
   }
