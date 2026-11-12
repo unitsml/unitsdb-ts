@@ -26,6 +26,7 @@ require "json"
 require "yaml"
 require "digest"
 require "open3"
+require_relative "projection-helpers"
 
 DATA_DIR = ARGV[0] || "data"
 OUT = ARGV[1] || "/tmp/unitsdb-ts.json"
@@ -110,7 +111,7 @@ units = db.units.map do |u|
     unit_system_reference: ids(u.unit_system_reference),
     si_derived_bases: u.si_derived_bases&.map { |b| { unit_reference: { id: b.unit_reference&.id }, prefix_reference: ref_id(b.prefix_reference), power: b.power } },
     dimension_reference: ref_id(u.dimension_reference),
-    quantity_references: u.quantity_references&.map { |r| r.primary ? { id: r.id, primary: true } : { id: r.id } },
+    quantity_references: u.quantity_references&.map { |r| quantity_reference(r) },
   }
   if (cc = u.canonical_conversion)
     if absent?(cc.factor) || absent?(cc.root_units)
@@ -249,6 +250,7 @@ provenance = {
   generator: {
     script: "scripts/build-dataset.rb",
     script_digest: text_digest(__FILE__),
+    helper_digest: text_digest(File.join(__dir__, "projection-helpers.rb")),
     unitsdb_ruby: unitsdb_version,
     lutaml_model: lutaml_version,
   },
